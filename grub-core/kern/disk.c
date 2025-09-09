@@ -28,10 +28,6 @@
 
 #define	GRUB_CACHE_TIMEOUT	2
 
-/* Disk reads may trigger other disk reads. So, limit recursion depth. */
-#define MAX_READ_RECURSION_DEPTH	16
-static unsigned int read_recursion_depth = 0;
-
 /* The last time the disk was used.  */
 static grub_uint64_t grub_last_time = 0;
 
@@ -421,8 +417,6 @@ grub_err_t
 grub_disk_read (grub_disk_t disk, grub_disk_addr_t sector,
 		grub_off_t offset, grub_size_t size, void *buf)
 {
-  grub_err_t err = GRUB_ERR_NONE;
-
   /* First of all, check if the region is within the disk.  */
   if (grub_disk_adjust_range (disk, &sector, &offset, size) != GRUB_ERR_NONE)
     {
@@ -433,17 +427,12 @@ grub_disk_read (grub_disk_t disk, grub_disk_addr_t sector,
       return grub_errno;
     }
 
-  if (++read_recursion_depth >= MAX_READ_RECURSION_DEPTH)
-    {
-      grub_error (GRUB_ERR_RECURSION_DEPTH, "grub_disk_read(): Maximum recursion depth exceeded");
-      goto error;
-    }
-
   /* First read until first cache boundary.   */
   if (offset || (sector & (GRUB_DISK_CACHE_SIZE - 1)))
     {
       grub_disk_addr_t start_sector;
       grub_size_t pos;
+      grub_err_t err;
       grub_size_t len;
 
       start_sector = sector & ~((grub_disk_addr_t) GRUB_DISK_CACHE_SIZE - 1);
@@ -455,7 +444,7 @@ grub_disk_read (grub_disk_t disk, grub_disk_addr_t sector,
       err = grub_disk_read_small (disk, start_sector,
 				  offset + pos, len, buf);
       if (err)
-	goto error;
+	return err;
       buf = (char *) buf + len;
       size -= len;
       offset += len;
@@ -468,6 +457,7 @@ grub_disk_read (grub_disk_t disk, grub_disk_addr_t sector,
     {
       char *data = NULL;
       grub_disk_addr_t agglomerate;
+      grub_err_t err;
 
       /* agglomerate read until we find a first cached entry.  */
       for (agglomerate = 0; agglomerate
@@ -503,7 +493,7 @@ grub_disk_read (grub_disk_t disk, grub_disk_addr_t sector,
 							- disk->log_sector_size),
 					buf);
 	  if (err)
-	    goto error;
+	    return err;
 
 	  for (i = 0; i < agglomerate; i ++)
 	    grub_disk_cache_store (disk->dev->id, disk->id,
@@ -537,16 +527,13 @@ grub_disk_read (grub_disk_t disk, grub_disk_addr_t sector,
   /* And now read the last part.  */
   if (size)
     {
+      grub_err_t err;
       err = grub_disk_read_small (disk, sector, 0, size, buf);
       if (err)
-	goto error;
+	return err;
     }
 
-  err = grub_errno;
-
- error:
-  read_recursion_depth--;
-  return err;
+  return grub_errno;
 }
 
 grub_uint64_t

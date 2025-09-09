@@ -14,8 +14,8 @@
  * GNU Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this program; if not, see <https://www.gnu.org/licenses/>.
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * License along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA
  *
  * Note: This code is heavily based on the GNU MP Library.
  *	 Actually it's the same code with only minor changes in the
@@ -36,7 +36,7 @@
  * result in W. U and V may be the same.
  */
 void
-_gcry_mpi_add_ui (gcry_mpi_t w, gcry_mpi_t u, unsigned long v )
+gcry_mpi_add_ui(gcry_mpi_t w, gcry_mpi_t u, unsigned long v )
 {
     mpi_ptr_t wp, up;
     mpi_size_t usize, wsize;
@@ -84,8 +84,8 @@ _gcry_mpi_add_ui (gcry_mpi_t w, gcry_mpi_t u, unsigned long v )
 }
 
 
-static void
-_gcry_mpi_add_inv_sign(gcry_mpi_t w, gcry_mpi_t u, gcry_mpi_t v, int inv_v_sign)
+void
+gcry_mpi_add(gcry_mpi_t w, gcry_mpi_t u, gcry_mpi_t v)
 {
     mpi_ptr_t wp, up, vp;
     mpi_size_t usize, vsize, wsize;
@@ -93,7 +93,7 @@ _gcry_mpi_add_inv_sign(gcry_mpi_t w, gcry_mpi_t u, gcry_mpi_t v, int inv_v_sign)
 
     if( u->nlimbs < v->nlimbs ) { /* Swap U and V. */
 	usize = v->nlimbs;
-	usign = v->sign ^ inv_v_sign;
+	usign = v->sign;
 	vsize = u->nlimbs;
 	vsign = u->sign;
 	wsize = usize + 1;
@@ -106,7 +106,7 @@ _gcry_mpi_add_inv_sign(gcry_mpi_t w, gcry_mpi_t u, gcry_mpi_t v, int inv_v_sign)
 	usize = u->nlimbs;
 	usign = u->sign;
 	vsize = v->nlimbs;
-	vsign = v->sign ^ inv_v_sign;
+	vsign = v->sign;
 	wsize = usize + 1;
 	RESIZE_IF_NEEDED(w, wsize);
 	/* These must be after realloc (u or v may be the same as w).  */
@@ -162,7 +162,7 @@ _gcry_mpi_add_inv_sign(gcry_mpi_t w, gcry_mpi_t u, gcry_mpi_t v, int inv_v_sign)
  * result in W.
  */
 void
-_gcry_mpi_sub_ui(gcry_mpi_t w, gcry_mpi_t u, unsigned long v )
+gcry_mpi_sub_ui(gcry_mpi_t w, gcry_mpi_t u, unsigned long v )
 {
     mpi_ptr_t wp, up;
     mpi_size_t usize, wsize;
@@ -191,7 +191,6 @@ _gcry_mpi_sub_ui(gcry_mpi_t w, gcry_mpi_t u, unsigned long v )
 	cy = _gcry_mpih_add_1(wp, up, usize, v);
 	wp[usize] = cy;
 	wsize = usize + cy;
-	wsign = 1;
     }
     else {  /* The signs are different.  Need exact comparison to determine
 	     * which operand to subtract from which.  */
@@ -212,50 +211,25 @@ _gcry_mpi_sub_ui(gcry_mpi_t w, gcry_mpi_t u, unsigned long v )
 }
 
 void
-_gcry_mpi_add(gcry_mpi_t w, gcry_mpi_t u, gcry_mpi_t v)
+gcry_mpi_sub(gcry_mpi_t w, gcry_mpi_t u, gcry_mpi_t v)
 {
-  _gcry_mpi_add_inv_sign (w, u, v, 0);
-}
-
-void
-_gcry_mpi_sub(gcry_mpi_t w, gcry_mpi_t u, gcry_mpi_t v)
-{
-  _gcry_mpi_add_inv_sign (w, u, v, 1);
+  gcry_mpi_t vv = mpi_copy (v);
+  vv->sign = ! vv->sign;
+  gcry_mpi_add (w, u, vv);
+  mpi_free (vv);
 }
 
 
 void
-_gcry_mpi_addm( gcry_mpi_t w, gcry_mpi_t u, gcry_mpi_t v, gcry_mpi_t m)
+gcry_mpi_addm( gcry_mpi_t w, gcry_mpi_t u, gcry_mpi_t v, gcry_mpi_t m)
 {
-  gcry_mpi_t temp_m = NULL;
-
-  if (w == m)
-    {
-      temp_m = mpi_copy (m);
-      m = temp_m;
-    }
-
-  mpi_add (w, u, v);
-  mpi_mod (w, w, m);
-
-  if (temp_m)
-    mpi_free(temp_m);
+    gcry_mpi_add(w, u, v);
+    _gcry_mpi_fdiv_r( w, w, m );
 }
 
 void
-_gcry_mpi_subm( gcry_mpi_t w, gcry_mpi_t u, gcry_mpi_t v, gcry_mpi_t m)
+gcry_mpi_subm( gcry_mpi_t w, gcry_mpi_t u, gcry_mpi_t v, gcry_mpi_t m)
 {
-  gcry_mpi_t temp_m = NULL;
-
-  if (w == m)
-    {
-      temp_m = mpi_copy (m);
-      m = temp_m;
-    }
-
-  mpi_sub (w, u, v);
-  mpi_mod (w, w, m);
-
-  if (temp_m)
-    mpi_free(temp_m);
+    gcry_mpi_sub(w, u, v);
+    _gcry_mpi_fdiv_r( w, w, m );
 }

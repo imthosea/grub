@@ -26,7 +26,6 @@
 #include <grub/types.h>
 #include <grub/fshelp.h>
 #include <grub/charset.h>
-#include <grub/lockdown.h>
 
 GRUB_MOD_LICENSE ("GPLv3+");
 
@@ -704,16 +703,11 @@ static struct grub_fs grub_affs_fs =
 
 GRUB_MOD_INIT(affs)
 {
-  if (!grub_is_lockdown ())
-    {
-      grub_affs_fs.mod = mod;
-      grub_fs_register (&grub_affs_fs);
-    }
+  grub_fs_register (&grub_affs_fs);
   my_mod = mod;
 }
 
 GRUB_MOD_FINI(affs)
 {
-  if (!grub_is_lockdown ())
-    grub_fs_unregister (&grub_affs_fs);
+  grub_fs_unregister (&grub_affs_fs);
 }

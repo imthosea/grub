@@ -477,8 +477,6 @@ main (int argc, char *argv[])
     for (i = 1; i < argc; i++)
       {
 	if (strcmp (argv[i], "-output") == 0) {
-	  if (i + 1 >= argc)
-	    grub_util_error ("%s -- '%s'", _("option requires an argument"), argv[i]);
 	  argp_argv[argp_argc++] = (char *) "--output";
 	  i++;
 	  argp_argv[argp_argc++] = argv[i];
@@ -487,8 +485,6 @@ main (int argc, char *argv[])
 	switch (args_to_eat (argv[i]))
 	  {
 	  case 2:
-	    if (i + 1 >= argc)
-	      grub_util_error ("%s -- '%s'", _("option requires an argument"), argv[i]);
 	    argp_argv[argp_argc++] = argv[i++];
 	    /* Fallthrough  */
 	  case 1:

@@ -34,7 +34,6 @@
 #include <grub/dl.h>
 #include <grub/types.h>
 #include <grub/fshelp.h>
-#include <grub/lockdown.h>
 
 GRUB_MOD_LICENSE ("GPLv3+");
 
@@ -1232,16 +1231,11 @@ GRUB_MOD_INIT (nilfs2)
 				  grub_nilfs2_dat_entry));
   COMPILE_TIME_ASSERT (1 << LOG_INODE_SIZE
 		       == sizeof (struct grub_nilfs2_inode));
-  if (!grub_is_lockdown ())
-    {
-      grub_nilfs2_fs.mod = mod;
-      grub_fs_register (&grub_nilfs2_fs);
-    }
+  grub_fs_register (&grub_nilfs2_fs);
   my_mod = mod;
 }
 
 GRUB_MOD_FINI (nilfs2)
 {
-  if (!grub_is_lockdown ())
-    grub_fs_unregister (&grub_nilfs2_fs);
+  grub_fs_unregister (&grub_nilfs2_fs);
 }

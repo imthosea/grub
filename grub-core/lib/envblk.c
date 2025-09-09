@@ -235,7 +235,7 @@ grub_envblk_iterate (grub_envblk_t envblk,
 
   while (p < pend)
     {
-      if (*p != '#' && *p != '\n' && *p != '\r')
+      if (*p != '#')
         {
           char *name;
           char *value;

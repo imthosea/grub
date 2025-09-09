@@ -24,7 +24,6 @@
 #include <grub/lib/hexdump.h>
 #include <grub/extcmd.h>
 #include <grub/i18n.h>
-#include <grub/lockdown.h>
 
 GRUB_MOD_LICENSE ("GPLv3+");
 
@@ -52,11 +51,7 @@ grub_cmd_hexdump (grub_extcmd_context_t ctxt, int argc, char **args)
   length = (state[1].set) ? grub_strtoul (state[1].arg, 0, 0) : 256;
 
   if (!grub_strcmp (args[0], "(mem)"))
-    {
-      if (grub_is_lockdown() == GRUB_LOCKDOWN_ENABLED)
-        return grub_error (GRUB_ERR_ACCESS_DENIED, N_("memory reading is disabled in lockdown mode"));
-      hexdump (skip, (char *) (grub_addr_t) skip, length);
-    }
+    hexdump (skip, (char *) (grub_addr_t) skip, length);
   else if ((args[0][0] == '(') && (args[0][namelen - 1] == ')'))
     {
       grub_disk_t disk;

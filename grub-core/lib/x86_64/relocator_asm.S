@@ -22,25 +22,25 @@
 	.p2align	2
 
 VARIABLE(grub_relocator_backward_start)
-	/* mov imm64, %rax */
+	/* mov imm32, %rax */
 	.byte	0x48
 	.byte	0xb8
 VARIABLE(grub_relocator_backward_dest)
-	.quad	0
+	.long	0, 0
 	movq	%rax, %rdi
 
 	/* mov imm64, %rax */
 	.byte	0x48
 	.byte	0xb8
 VARIABLE(grub_relocator_backward_src)
-	.quad	0
+	.long	0, 0
 	movq	%rax, %rsi
 
 	/* mov imm64, %rcx */
 	.byte	0x48
 	.byte	0xb9
 VARIABLE(grub_relocator_backward_chunk_size)
-	.quad	0
+	.long	0, 0
 
 	add	%rcx, %rsi
 	add	%rcx, %rdi
@@ -62,21 +62,21 @@ VARIABLE(grub_relocator_forward_start)
 	.byte	0x48
 	.byte	0xb8
 VARIABLE(grub_relocator_forward_dest)
-	.quad	0
+	.long	0, 0
 	movq	%rax, %rdi
 
 	/* mov imm64, %rax */
 	.byte	0x48
 	.byte	0xb8
 VARIABLE(grub_relocator_forward_src)
-	.quad	0
+	.long	0, 0
 	movq	%rax, %rsi
 
 	/* mov imm64, %rcx */
 	.byte	0x48
 	.byte	0xb9
 VARIABLE(grub_relocator_forward_chunk_size)
-	.quad	0
+	.long	0, 0
 
 	/* Forward copy.  */
 	cld

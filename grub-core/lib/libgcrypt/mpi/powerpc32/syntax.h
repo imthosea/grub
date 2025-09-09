@@ -16,9 +16,8 @@
 
    You should have received a copy of the GNU Library General Public
    License along with the GNU C Library; see the file COPYING.LIB.  If not,
-   see <https://www.gnu.org/licenses/>.
-   SPDX-License-Identifier: LGPL-2-or-later
-*/
+   write to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+   Boston, MA 02111-1307, USA.	*/
 
 
 #define USE_PPC_PATCHES 1

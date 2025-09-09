@@ -366,10 +366,6 @@ static int dbits = 6;		/* bits in base distance lookup table */
    lookup of seven bits, the EOB code will be found in that first
    lookup, and so will not require that too many bits be pulled from
    the stream.
-
-   Note that NEEDBITS() can fail if the file is corrupt/truncated.
-   The GOTOFAILIFERROR, RETURNIFERROR and RETURN1IFERROR macros can
-   help.
  */
 
 static ush mask_bits[] =
@@ -381,14 +377,10 @@ static ush mask_bits[] =
 
 #define NEEDBITS(n) do {while(k<(n)){b|=((ulg)get_byte(gzio))<<k;k+=8;}} while (0)
 #define DUMPBITS(n) do {b>>=(n);k-=(n);} while (0)
-#define RETURNIFERROR if (grub_errno != GRUB_ERR_NONE) return
-#define RETURN1IFERROR if (grub_errno != GRUB_ERR_NONE) return 1
-#define GOTOFAILIFERROR if (grub_errno != GRUB_ERR_NONE) goto fail
 
 static int
 get_byte (grub_gzio_t gzio)
 {
-  grub_ssize_t bytes_read;
   if (gzio->mem_input)
     {
       if (gzio->mem_input_off < gzio->mem_input_size)
@@ -401,16 +393,7 @@ get_byte (grub_gzio_t gzio)
 		     || gzio->inbuf_d == INBUFSIZ))
     {
       gzio->inbuf_d = 0;
-      bytes_read = grub_file_read (gzio->file, gzio->inbuf, INBUFSIZ);
-      /*
-       * Only trigger if we get 0 bytes. If we get negative bytes there should
-       * be an existing GRUB error code that we don't want to overwrite.
-       */
-      if (bytes_read == 0)
-	{
-	  grub_error (GRUB_ERR_BAD_COMPRESSED_DATA, "File is too short");
-	  return 0;
-	}
+      grub_file_read (gzio->file, gzio->inbuf, INBUFSIZ);
     }
 
   return gzio->inbuf[gzio->inbuf_d++];
@@ -524,7 +507,7 @@ huft_build (unsigned *b,	/* code lengths in bits (all assumed <= BMAX) */
     }
 
   /* Make a table of values in order of bit lengths */
-  grub_memset (v, N_MAX, sizeof (v));
+  grub_memset (v, N_MAX, ARRAY_SIZE (v));
   p = b;
   i = 0;
   do
@@ -701,7 +684,7 @@ inflate_codes_in_window (grub_gzio_t gzio)
 	      return 1;
 	    }
 
-	  NEEDBITS ((unsigned) gzio->bl); RETURN1IFERROR;
+	  NEEDBITS ((unsigned) gzio->bl);
 	  if ((e = (t = gzio->tl + ((unsigned) b & ml))->e) > 16)
 	    do
 	      {
@@ -713,7 +696,7 @@ inflate_codes_in_window (grub_gzio_t gzio)
 		  }
 		DUMPBITS (t->b);
 		e -= 16;
-		NEEDBITS (e); RETURN1IFERROR;
+		NEEDBITS (e);
 	      }
 	    while ((e = (t = t->v.t + ((unsigned) b & mask_bits[e]))->e) > 16);
 	  DUMPBITS (t->b);
@@ -735,7 +718,7 @@ inflate_codes_in_window (grub_gzio_t gzio)
 		}
 
 	      /* get length of block to copy */
-	      NEEDBITS (e); RETURN1IFERROR;
+	      NEEDBITS (e);
 	      n = t->v.n + ((unsigned) b & mask_bits[e]);
 	      DUMPBITS (e);
 
@@ -746,7 +729,7 @@ inflate_codes_in_window (grub_gzio_t gzio)
 		}
 
 	      /* decode distance of block to copy */
-	      NEEDBITS ((unsigned) gzio->bd); RETURN1IFERROR;
+	      NEEDBITS ((unsigned) gzio->bd);
 	      if ((e = (t = gzio->td + ((unsigned) b & md))->e) > 16)
 		do
 		  {
@@ -758,12 +741,12 @@ inflate_codes_in_window (grub_gzio_t gzio)
 		      }
 		    DUMPBITS (t->b);
 		    e -= 16;
-		    NEEDBITS (e); RETURN1IFERROR;
+		    NEEDBITS (e);
 		  }
 		while ((e = (t = t->v.t + ((unsigned) b & mask_bits[e]))->e)
 		       > 16);
 	      DUMPBITS (t->b);
-	      NEEDBITS (e); RETURN1IFERROR;
+	      NEEDBITS (e);
 	      d = w - t->v.n - ((unsigned) b & mask_bits[e]);
 	      DUMPBITS (e);
 	      gzio->code_state++;
@@ -832,10 +815,10 @@ init_stored_block (grub_gzio_t gzio)
   DUMPBITS (k & 7);
 
   /* get the length and its complement */
-  NEEDBITS (16); RETURNIFERROR;
+  NEEDBITS (16);
   gzio->block_len = ((unsigned) b & 0xffff);
   DUMPBITS (16);
-  NEEDBITS (16); RETURNIFERROR;
+  NEEDBITS (16);
   if (gzio->block_len != (int) ((~b) & 0xffff))
     grub_error (GRUB_ERR_BAD_COMPRESSED_DATA,
 		"the length of a stored block does not match");
@@ -917,13 +900,13 @@ init_dynamic_block (grub_gzio_t gzio)
   k = gzio->bk;
 
   /* read in table lengths */
-  NEEDBITS (5); RETURNIFERROR;
+  NEEDBITS (5);
   nl = 257 + ((unsigned) b & 0x1f);	/* number of literal/length codes */
   DUMPBITS (5);
-  NEEDBITS (5); RETURNIFERROR;
+  NEEDBITS (5);
   nd = 1 + ((unsigned) b & 0x1f);	/* number of distance codes */
   DUMPBITS (5);
-  NEEDBITS (4); RETURNIFERROR;
+  NEEDBITS (4);
   nb = 4 + ((unsigned) b & 0xf);	/* number of bit length codes */
   DUMPBITS (4);
   if (nl > 286 || nd > 30)
@@ -935,7 +918,7 @@ init_dynamic_block (grub_gzio_t gzio)
   /* read in bit-length-code lengths */
   for (j = 0; j < nb; j++)
     {
-      NEEDBITS (3); RETURNIFERROR;
+      NEEDBITS (3);
       ll[bitorder[j]] = (unsigned) b & 7;
       DUMPBITS (3);
     }
@@ -964,7 +947,7 @@ init_dynamic_block (grub_gzio_t gzio)
 
   while ((unsigned) i < n)
     {
-      NEEDBITS ((unsigned) gzio->bl); GOTOFAILIFERROR;
+      NEEDBITS ((unsigned) gzio->bl);
       j = (gzio->td = gzio->tl + ((unsigned) b & m))->b;
       DUMPBITS (j);
       j = gzio->td->v.n;
@@ -972,7 +955,7 @@ init_dynamic_block (grub_gzio_t gzio)
 	ll[i++] = l = j;	/* save last length in l */
       else if (j == 16)		/* repeat last length 3 to 6 times */
 	{
-	  NEEDBITS (2); GOTOFAILIFERROR;
+	  NEEDBITS (2);
 	  j = 3 + ((unsigned) b & 3);
 	  DUMPBITS (2);
 	  if ((unsigned) i + j > n)
@@ -985,7 +968,7 @@ init_dynamic_block (grub_gzio_t gzio)
 	}
       else if (j == 17)		/* 3 to 10 zero length codes */
 	{
-	  NEEDBITS (3); GOTOFAILIFERROR;
+	  NEEDBITS (3);
 	  j = 3 + ((unsigned) b & 7);
 	  DUMPBITS (3);
 	  if ((unsigned) i + j > n)
@@ -1000,7 +983,7 @@ init_dynamic_block (grub_gzio_t gzio)
       else
 	/* j == 18: 11 to 138 zero length codes */
 	{
-	  NEEDBITS (7); GOTOFAILIFERROR;
+	  NEEDBITS (7);
 	  j = 11 + ((unsigned) b & 0x7f);
 	  DUMPBITS (7);
 	  if ((unsigned) i + j > n)
@@ -1066,12 +1049,12 @@ get_new_block (grub_gzio_t gzio)
   k = gzio->bk;
 
   /* read in last block bit */
-  NEEDBITS (1); RETURNIFERROR;
+  NEEDBITS (1);
   gzio->last_block = (int) b & 1;
   DUMPBITS (1);
 
   /* read in block type */
-  NEEDBITS (2); RETURNIFERROR;
+  NEEDBITS (2);
   gzio->block_type = (unsigned) b & 3;
   DUMPBITS (2);
 
@@ -1201,7 +1184,7 @@ initialize_tables (grub_gzio_t gzio)
   gzio->td = NULL;
 
   if (gzio->hcontext)
-    gzio->hdesc->init(gzio->hcontext, 0);
+    gzio->hdesc->init(gzio->hcontext);
 }
 
 

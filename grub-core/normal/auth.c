@@ -25,10 +25,6 @@
 #include <grub/time.h>
 #include <grub/i18n.h>
 
-#ifdef GRUB_MACHINE_EFI
-#include <grub/cryptodisk.h>
-#endif
-
 struct grub_auth_user
 {
   struct grub_auth_user *next;
@@ -205,32 +201,6 @@ grub_username_get (char buf[], unsigned buf_size)
 }
 
 grub_err_t
-grub_auth_check_cli_access (void)
-{
-  if (grub_is_cli_need_auth () == true)
-    {
-#ifdef GRUB_MACHINE_EFI
-      static bool authenticated = false;
-
-      if (authenticated == false)
-	{
-	  grub_err_t ret;
-
-	  ret = grub_cryptodisk_challenge_password ();
-	  if (ret == GRUB_ERR_NONE)
-	    authenticated = true;
-	  return ret;
-	}
-      return GRUB_ERR_NONE;
-#else
-      return GRUB_ACCESS_DENIED;
-#endif
-    }
-
-  return GRUB_ERR_NONE;
-}
-
-grub_err_t
 grub_auth_check_authentication (const char *userlist)
 {
   char login[1024];
@@ -238,9 +208,6 @@ grub_auth_check_authentication (const char *userlist)
   static unsigned long punishment_delay = 1;
   char entered[GRUB_AUTH_MAX_PASSLEN];
   struct grub_auth_user *user;
-
-  if (grub_is_cli_disabled ())
-    return GRUB_ACCESS_DENIED;
 
   grub_memset (login, 0, sizeof (login));
 

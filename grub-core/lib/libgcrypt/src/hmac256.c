@@ -24,7 +24,8 @@
     internal consistency checks.  It should not be used for sensitive
     data because no mechanisms to clear the stack etc are used.
 
-    This module may be used standalone.
+    This module may be used standalone and requires only a few
+    standard definitions to be provided in a config.h file.
 
     Types:
 
@@ -35,7 +36,7 @@
      WORDS_BIGENDIAN       Defined to 1 on big endian systems.
      inline                If defined, it should yield the keyword used
                            to inline a function.
-     HAVE_U32              Defined if the u32 type is available.
+     HAVE_U32_TYPEDEF      Defined if the u32 type is available.
      SIZEOF_UNSIGNED_INT   Defined to the size in bytes of an unsigned int.
      SIZEOF_UNSIGNED_LONG  Defined to the size in bytes of an unsigned long.
 
@@ -45,22 +46,7 @@
                            for testing this included module.
  */
 
-#ifdef STANDALONE
-# ifndef KEY_FOR_BINARY_CHECK
-# define KEY_FOR_BINARY_CHECK "What am I, a doctor or a moonshuttle conductor?"
-# endif
-#include <stdint.h>
-#define HAVE_U32 1
-typedef uint32_t u32;
-#define VERSION "standalone"
-/* For GCC, we can detect endianness.  If not GCC, please define manually.  */
-#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-#define WORDS_BIGENDIAN 1
-#endif
-#else
 #include <config.h>
-#endif
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -70,19 +56,20 @@ typedef uint32_t u32;
 # include <fcntl.h> /* We need setmode().  */
 #endif
 
-#ifdef STANDALONE
-#define xtrymalloc(a) malloc((a))
-#define gpg_err_set_errno(a) (errno = (a))
-#define xfree(a) free((a))
+/* For a native WindowsCE binary we need to include gpg-error.h to
+   provide a replacement for strerror.  In other cases we need a
+   replacement macro for gpg_err_set_errno.  */
+#ifdef __MINGW32CE__
+# include <gpg-error.h>
 #else
-#include "g10lib.h"
+# define gpg_err_set_errno(a) (errno = (a))
 #endif
 
 #include "hmac256.h"
 
 
 
-#ifndef HAVE_U32
+#ifndef HAVE_U32_TYPEDEF
 # undef u32 /* Undef a possible macro with that name.  */
 # if SIZEOF_UNSIGNED_INT == 4
    typedef unsigned int u32;
@@ -91,7 +78,7 @@ typedef uint32_t u32;
 # else
 #  error no typedef for u32
 # endif
-# define HAVE_U32
+# define HAVE_U32_TYPEDEF
 #endif
 
 
@@ -103,18 +90,26 @@ struct hmac256_context
   u32  h0, h1, h2, h3, h4, h5, h6, h7;
   u32  nblocks;
   int  count;
-  unsigned int  finalized:1;
-  unsigned int  use_hmac:1;
+  int  finalized:1;
+  int  use_hmac:1;
   unsigned char buf[64];
   unsigned char opad[64];
 };
 
 
 /* Rotate a 32 bit word.  */
-static inline u32 ror(u32 x, int n)
+#if defined(__GNUC__) && defined(__i386__)
+static inline u32
+ror(u32 x, int n)
 {
-	return ( ((x) >> (n)) | ((x) << (32-(n))) );
+	__asm__("rorl %%cl,%0"
+		:"=r" (x)
+		:"0" (x),"c" (n));
+	return x;
 }
+#else
+#define ror(x,n) ( ((x) >> (n)) | ((x) << (32-(n))) )
+#endif
 
 #define my_wipememory2(_ptr,_set,_len) do { \
               volatile char *_vptr=(volatile char *)(_ptr); \
@@ -309,7 +304,7 @@ _gcry_hmac256_new (const void *key, size_t keylen)
 {
   hmac256_context_t hd;
 
-  hd = xtrymalloc (sizeof *hd);
+  hd = malloc (sizeof *hd);
   if (!hd)
     return NULL;
 
@@ -345,7 +340,7 @@ _gcry_hmac256_new (const void *key, size_t keylen)
           tmphd = _gcry_hmac256_new (NULL, 0);
           if (!tmphd)
             {
-              xfree (hd);
+              free (hd);
               return NULL;
             }
           _gcry_hmac256_update (tmphd, key, keylen);
@@ -377,7 +372,7 @@ _gcry_hmac256_release (hmac256_context_t ctx)
       /* Note: We need to take care not to modify errno.  */
       if (ctx->use_hmac)
         my_wipememory (ctx->opad, 64);
-      xfree (ctx);
+      free (ctx);
     }
 }
 
@@ -439,8 +434,10 @@ _gcry_hmac256_finalize (hmac256_context_t hd, size_t *r_dlen)
 
       tmphd = _gcry_hmac256_new (NULL, 0);
       if (!tmphd)
-	return NULL;
-
+        {
+          free (hd);
+          return NULL;
+        }
       _gcry_hmac256_update (tmphd, hd->opad, 64);
       _gcry_hmac256_update (tmphd, hd->buf, 32);
       finalize (tmphd);
@@ -482,7 +479,7 @@ _gcry_hmac256_file (void *result, size_t resultsize, const char *filename,
     }
 
   buffer_size = 32768;
-  buffer = xtrymalloc (buffer_size);
+  buffer = malloc (buffer_size);
   if (!buffer)
     {
       fclose (fp);
@@ -493,7 +490,7 @@ _gcry_hmac256_file (void *result, size_t resultsize, const char *filename,
   while ( (nread = fread (buffer, 1, buffer_size, fp)))
     _gcry_hmac256_update (hd, buffer, nread);
 
-  xfree (buffer);
+  free (buffer);
 
   if (ferror (fp))
     {
@@ -659,7 +656,6 @@ main (int argc, char **argv)
   size_t n, dlen, idx;
   int use_stdin = 0;
   int use_binary = 0;
-  int use_stdkey = 0;
 
   assert (sizeof (u32) == 4);
 #ifdef __WIN32
@@ -703,16 +699,11 @@ main (int argc, char **argv)
           argc--; argv++;
           use_binary = 1;
         }
-      else if (!strcmp (*argv, "--stdkey"))
-        {
-          argc--; argv++;
-          use_stdkey = 1;
-        }
     }
 
-  if (argc < 1 && !use_stdkey)
+  if (argc < 1)
     {
-      fprintf (stderr, "usage: %s [--binary] [--stdkey|key] [filename]\n", pgm);
+      fprintf (stderr, "usage: %s [--binary] key [filename]\n", pgm);
       exit (1);
     }
 
@@ -721,13 +712,8 @@ main (int argc, char **argv)
     setmode (fileno (stdout), O_BINARY);
 #endif
 
-  if (use_stdkey)
-    key = KEY_FOR_BINARY_CHECK;
-  else
-    {
-      key = *argv;
-      argc--, argv++;
-    }
+  key = *argv;
+  argc--, argv++;
   keylen = strlen (key);
   use_stdin = !argc;
 
@@ -780,9 +766,6 @@ main (int argc, char **argv)
                        pgm, strerror (errno));
               exit (1);
             }
-          _gcry_hmac256_release (hd);
-          if (use_stdin)
-            break;
         }
       else
         {

@@ -64,12 +64,4 @@ abort (void)
   grub_abort ();
 }
 
-#define strtol grub_strtol
-
-/* for libgcrypt */
-#define HAVE_STRTOUL
-#define strtoul grub_strtoul
-
-#define strtoull grub_strtoull
-
 #endif

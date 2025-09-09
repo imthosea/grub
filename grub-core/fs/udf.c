@@ -27,7 +27,6 @@
 #include <grub/fshelp.h>
 #include <grub/charset.h>
 #include <grub/datetime.h>
-#include <grub/lockdown.h>
 #include <grub/udf.h>
 #include <grub/safemath.h>
 
@@ -1456,16 +1455,11 @@ static struct grub_fs grub_udf_fs = {
 
 GRUB_MOD_INIT (udf)
 {
-  if (!grub_is_lockdown ())
-    {
-      grub_udf_fs.mod = mod;
-      grub_fs_register (&grub_udf_fs);
-    }
+  grub_fs_register (&grub_udf_fs);
   my_mod = mod;
 }
 
 GRUB_MOD_FINI (udf)
 {
-  if (!grub_is_lockdown ())
-    grub_fs_unregister (&grub_udf_fs);
+  grub_fs_unregister (&grub_udf_fs);
 }

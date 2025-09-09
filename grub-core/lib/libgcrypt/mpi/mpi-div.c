@@ -15,8 +15,8 @@
  * GNU Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this program; if not, see <https://www.gnu.org/licenses/>.
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * License along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA
  *
  * Note: This code is heavily based on the GNU MP Library.
  *	 Actually it's the same code with only minor changes in the
@@ -50,7 +50,7 @@ _gcry_mpi_fdiv_r( gcry_mpi_t rem, gcry_mpi_t dividend, gcry_mpi_t divisor )
     _gcry_mpi_tdiv_r( rem, dividend, divisor );
 
     if( ((divisor_sign?1:0) ^ (dividend->sign?1:0)) && rem->nlimbs )
-	mpi_add (rem, rem, divisor);
+	gcry_mpi_add( rem, rem, divisor);
 
     if( temp_divisor )
 	mpi_free(temp_divisor);
@@ -64,9 +64,8 @@ _gcry_mpi_fdiv_r( gcry_mpi_t rem, gcry_mpi_t dividend, gcry_mpi_t divisor )
  * rem is optional
  */
 
-unsigned long
-_gcry_mpi_fdiv_r_ui( gcry_mpi_t rem, gcry_mpi_t dividend,
-                     unsigned long divisor )
+ulong
+_gcry_mpi_fdiv_r_ui( gcry_mpi_t rem, gcry_mpi_t dividend, ulong divisor )
 {
     mpi_limb_t rlimb;
 
@@ -104,8 +103,8 @@ _gcry_mpi_fdiv_qr( gcry_mpi_t quot, gcry_mpi_t rem, gcry_mpi_t dividend, gcry_mp
     _gcry_mpi_tdiv_qr( quot, rem, dividend, divisor );
 
     if( (divisor_sign ^ dividend->sign) && rem->nlimbs ) {
-	mpi_sub_ui( quot, quot, 1 );
-	mpi_add( rem, rem, divisor);
+	gcry_mpi_sub_ui( quot, quot, 1 );
+	gcry_mpi_add( rem, rem, divisor);
     }
 
     if( temp_divisor )
@@ -166,9 +165,6 @@ _gcry_mpi_tdiv_qr( gcry_mpi_t quot, gcry_mpi_t rem, gcry_mpi_t num, gcry_mpi_t d
 
     if( quot )
 	mpi_resize( quot, qsize);
-
-    if (!dsize)
-      _gcry_divide_by_zero();
 
     /* Read pointers here, when reallocation is finished.  */
     np = num->d;
@@ -325,15 +321,14 @@ _gcry_mpi_tdiv_q_2exp( gcry_mpi_t w, gcry_mpi_t u, unsigned int count )
  * (note: divisor must fit into a limb)
  */
 int
-_gcry_mpi_divisible_ui(gcry_mpi_t dividend, unsigned long divisor )
+_gcry_mpi_divisible_ui(gcry_mpi_t dividend, ulong divisor )
 {
     return !_gcry_mpih_mod_1( dividend->d, dividend->nlimbs, divisor );
 }
 
 
 void
-_gcry_mpi_div (gcry_mpi_t quot, gcry_mpi_t rem, gcry_mpi_t dividend,
-               gcry_mpi_t divisor, int round)
+gcry_mpi_div (gcry_mpi_t quot, gcry_mpi_t rem, gcry_mpi_t dividend, gcry_mpi_t divisor, int round)
 {
   if (!round)
     {

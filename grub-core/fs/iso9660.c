@@ -551,9 +551,6 @@ grub_iso9660_mount (grub_disk_t disk)
   return data;
 
  fail:
-  if (grub_errno == GRUB_ERR_NONE)
-    grub_error (GRUB_ERR_BAD_FS, "not a ISO9660 filesystem");
-
   grub_free (data);
   return 0;
 }
@@ -628,19 +625,9 @@ susp_iterate_dir (struct grub_iso9660_susp_entry *entry,
 	 filename type is stored.  */
       /* FIXME: Fix this slightly improper cast.  */
       if (entry->data[0] & GRUB_ISO9660_RR_DOT)
-	{
-	  if (ctx->filename_alloc)
-	    grub_free (ctx->filename);
-	  ctx->filename_alloc = 0;
-	  ctx->filename = (char *) ".";
-	}
+	ctx->filename = (char *) ".";
       else if (entry->data[0] & GRUB_ISO9660_RR_DOTDOT)
-	{
-	  if (ctx->filename_alloc)
-	    grub_free (ctx->filename);
-	  ctx->filename_alloc = 0;
-	  ctx->filename = (char *) "..";
-	}
+	ctx->filename = (char *) "..";
       else if (entry->len >= 5)
 	{
 	  grub_size_t off = 0, csize = 1;
@@ -1260,7 +1247,6 @@ static struct grub_fs grub_iso9660_fs =
 
 GRUB_MOD_INIT(iso9660)
 {
-  grub_iso9660_fs.mod = mod;
   grub_fs_register (&grub_iso9660_fs);
   my_mod = mod;
 }

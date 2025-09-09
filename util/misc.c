@@ -190,14 +190,14 @@ grub_xputs_real (const char *str)
 
 void (*grub_xputs) (const char *str) = grub_xputs_real;
 
-grub_uint64_t
+int
 grub_dl_ref (grub_dl_t mod)
 {
   (void) mod;
   return 0;
 }
 
-grub_uint64_t
+int
 grub_dl_unref (grub_dl_t mod)
 {
   (void) mod;

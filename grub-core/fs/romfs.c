@@ -23,7 +23,6 @@
 #include <grub/disk.h>
 #include <grub/fs.h>
 #include <grub/fshelp.h>
-#include <grub/lockdown.h>
 
 GRUB_MOD_LICENSE ("GPLv3+");
 
@@ -476,15 +475,10 @@ static struct grub_fs grub_romfs_fs =
 
 GRUB_MOD_INIT(romfs)
 {
-  if (!grub_is_lockdown ())
-    {
-      grub_romfs_fs.mod = mod;
-      grub_fs_register (&grub_romfs_fs);
-    }
+  grub_fs_register (&grub_romfs_fs);
 }
 
 GRUB_MOD_FINI(romfs)
 {
-  if (!grub_is_lockdown ())
-    grub_fs_unregister (&grub_romfs_fs);
+  grub_fs_unregister (&grub_romfs_fs);
 }

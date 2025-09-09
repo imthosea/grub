@@ -420,6 +420,13 @@ grub_cmd_module (grub_command_t cmd __attribute__ ((unused)),
       target = 0;
     }
 
+  err = GRUB_MULTIBOOT (add_module) (target, size, argc - 1, argv + 1);
+  if (err)
+    {
+      grub_file_close (file);
+      return err;
+    }
+
   if (size && grub_file_read (file, module, size) != size)
     {
       grub_file_close (file);
@@ -430,8 +437,7 @@ grub_cmd_module (grub_command_t cmd __attribute__ ((unused)),
     }
 
   grub_file_close (file);
-
-  return GRUB_MULTIBOOT (add_module) (target, size, argc - 1, argv + 1);
+  return GRUB_ERR_NONE;
 }
 
 static grub_command_t cmd_multiboot, cmd_module;

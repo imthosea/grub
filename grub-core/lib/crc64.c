@@ -61,10 +61,8 @@ init_crc64_table (void)
 }
 
 static void
-crc64_init (void *context, unsigned int flags)
+crc64_init (void *context)
 {
-  (void) flags;
-
   if (! crc64_table[1])
     init_crc64_table ();
   *(grub_uint64_t *) context = 0;
@@ -99,22 +97,10 @@ crc64_final (void *context __attribute__ ((unused)))
 
 gcry_md_spec_t _gcry_digest_spec_crc64 =
   {
-    .algo = GCRY_MD_CRC64,
-    .flags = {.disabled = 0, .fips = 0},
-    .name = "CRC64",
-    .asnoid = NULL,
-    .asnlen = 0,
-    .oids = NULL,
-    .mdlen = 8,
-    .init = crc64_init,
-    .write = crc64_write,
-    .final = crc64_final,
-    .read = crc64_read,
-    .contextsize = sizeof (grub_uint64_t),
-    .blocksize = 64,
-#ifdef GRUB_UTIL
-    .modname = "crc64",
-#endif
+    "CRC64", 0, 0, 0, 8,
+    crc64_init, crc64_write, crc64_final, crc64_read,
+    sizeof (grub_uint64_t),
+    .blocksize = 64
   };
 
 GRUB_MOD_INIT(crc64)

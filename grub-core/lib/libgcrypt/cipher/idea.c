@@ -48,7 +48,6 @@
 #include "types.h"  /* for byte and u32 typedefs */
 #include "g10lib.h"
 #include "cipher.h"
-#include "cipher-internal.h"
 
 
 #define IDEA_KEYSIZE 16
@@ -153,7 +152,7 @@ invert_key( u16 *ek, u16 dk[IDEA_KEYLEN] )
     *--p = t2;
     *--p = t1;
     memcpy(dk, temp, sizeof(temp) );
-    wipememory(temp, sizeof(temp));
+    memset(temp, 0, sizeof(temp) );  /* burn temp */
 }
 
 
@@ -251,9 +250,7 @@ do_setkey( IDEA_context *c, const byte *key, unsigned int keylen )
     if( selftest_failed )
 	return GPG_ERR_SELFTEST_FAILED;
 
-    if (keylen != 16)
-      return GPG_ERR_INV_KEYLEN;
-
+    assert(keylen == 16);
     c->have_dk = 0;
     expand_key( key, c->ek );
     invert_key( c->ek, c->dk );
@@ -261,12 +258,10 @@ do_setkey( IDEA_context *c, const byte *key, unsigned int keylen )
 }
 
 static gcry_err_code_t
-idea_setkey (void *context, const byte *key, unsigned int keylen,
-             cipher_bulk_ops_t *bulk_ops)
+idea_setkey (void *context, const byte *key, unsigned int keylen)
 {
     IDEA_context *ctx = context;
     int rc = do_setkey (ctx, key, keylen);
-    (void)bulk_ops;
     _gcry_burn_stack (23+6*sizeof(void*));
     return rc;
 }
@@ -277,12 +272,12 @@ encrypt_block( IDEA_context *c, byte *outbuf, const byte *inbuf )
     cipher( outbuf, inbuf, c->ek );
 }
 
-static unsigned int
+static void
 idea_encrypt (void *context, byte *out, const byte *in)
 {
     IDEA_context *ctx = context;
     encrypt_block (ctx, out, in);
-    return /*burn_stack*/ (24+3*sizeof (void*));
+    _gcry_burn_stack (24+3*sizeof (void*));
 }
 
 static void
@@ -295,12 +290,12 @@ decrypt_block( IDEA_context *c, byte *outbuf, const byte *inbuf )
     cipher( outbuf, inbuf, c->dk );
 }
 
-static unsigned int
+static void
 idea_decrypt (void *context, byte *out, const byte *in)
 {
     IDEA_context *ctx = context;
     decrypt_block (ctx, out, in);
-    return /*burn_stack*/ (24+3*sizeof (void*));
+    _gcry_burn_stack (24+3*sizeof (void*));
 }
 
 
@@ -376,9 +371,8 @@ static struct {
 
 
 gcry_cipher_spec_t _gcry_cipher_spec_idea =
-  {
-    GCRY_CIPHER_IDEA, {0, 0},
+{
     "IDEA", NULL, NULL, IDEA_BLOCKSIZE, 128,
     sizeof (IDEA_context),
     idea_setkey, idea_encrypt, idea_decrypt
-  };
+};

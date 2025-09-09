@@ -25,7 +25,6 @@
 #include <grub/mm.h>
 #include <grub/dl.h>
 #include <grub/i18n.h>
-#include <grub/safemath.h>
 
 GRUB_MOD_LICENSE ("GPLv3+");
 
@@ -77,10 +76,8 @@ grub_cpio_find_file (struct grub_archelp_data *data, char **name,
 {
   struct head hd;
   int reread = 0, have_longname = 0, have_longlink = 0;
-  grub_size_t sz;
 
   data->hofs = data->next_hofs;
-  *name = NULL;
 
   for (reread = 0; reread < 3; reread++)
     {
@@ -99,13 +96,8 @@ grub_cpio_find_file (struct grub_archelp_data *data, char **name,
       if (hd.typeflag == 'L')
 	{
 	  grub_err_t err;
-	  grub_size_t namesize;
-
-	  if (grub_cast (read_number (hd.size, sizeof (hd.size)), &namesize) ||
-	      grub_add (namesize, 1, &sz))
-	    return grub_error (GRUB_ERR_BAD_FS, N_("name size overflow"));
-
-	  *name = grub_malloc (sz);
+	  grub_size_t namesize = read_number (hd.size, sizeof (hd.size));
+	  *name = grub_malloc (namesize + 1);
 	  if (*name == NULL)
 	    return grub_errno;
 	  err = grub_disk_read (data->disk, 0,
@@ -124,21 +116,16 @@ grub_cpio_find_file (struct grub_archelp_data *data, char **name,
       if (hd.typeflag == 'K')
 	{
 	  grub_err_t err;
-	  grub_size_t linksize;
-
-	  if (grub_cast (read_number (hd.size, sizeof (hd.size)), &linksize) ||
-	      grub_add (linksize, 1, &sz))
-	    return grub_error (GRUB_ERR_BAD_FS, N_("link size overflow"));
-
-	  if (data->linkname_alloc < sz)
+	  grub_size_t linksize = read_number (hd.size, sizeof (hd.size));
+	  if (data->linkname_alloc < linksize + 1)
 	    {
 	      char *n;
-	      n = grub_calloc (2, sz);
+	      n = grub_calloc (2, linksize + 1);
 	      if (!n)
 		return grub_errno;
 	      grub_free (data->linkname);
 	      data->linkname = n;
-	      data->linkname_alloc = 2 * (sz);
+	      data->linkname_alloc = 2 * (linksize + 1);
 	    }
 
 	  err = grub_disk_read (data->disk, 0,
@@ -161,10 +148,7 @@ grub_cpio_find_file (struct grub_archelp_data *data, char **name,
 	  while (extra_size < sizeof (hd.prefix)
 		 && hd.prefix[extra_size])
 	    extra_size++;
-
-	  if (grub_add (sizeof (hd.name) + 2, extra_size, &sz))
-	    return grub_error (GRUB_ERR_BAD_FS, N_("long name size overflow"));
-	  *name = grub_malloc (sz);
+	  *name = grub_malloc (sizeof (hd.name) + extra_size + 2);
 	  if (*name == NULL)
 	    return grub_errno;
 	  if (hd.prefix[0])
@@ -176,22 +160,15 @@ grub_cpio_find_file (struct grub_archelp_data *data, char **name,
 	  (*name)[extra_size + sizeof (hd.name)] = 0;
 	}
 
-      if (grub_cast (read_number (hd.size, sizeof (hd.size)), &data->size))
-	return grub_error (GRUB_ERR_BAD_FS, N_("data size overflow"));
-
+      data->size = read_number (hd.size, sizeof (hd.size));
       data->dofs = data->hofs + GRUB_DISK_SECTOR_SIZE;
       data->next_hofs = data->dofs + ((data->size + GRUB_DISK_SECTOR_SIZE - 1) &
 			   ~(GRUB_DISK_SECTOR_SIZE - 1));
       if (mtime)
-	{
-	  if (grub_cast (read_number (hd.mtime, sizeof (hd.mtime)), mtime))
-	    return grub_error (GRUB_ERR_BAD_FS, N_("mtime overflow"));
-	}
+	*mtime = read_number (hd.mtime, sizeof (hd.mtime));
       if (mode)
 	{
-	  if (grub_cast (read_number (hd.mode, sizeof (hd.mode)), mode))
-	    return grub_error (GRUB_ERR_BAD_FS, N_("mode overflow"));
-
+	  *mode = read_number (hd.mode, sizeof (hd.mode));
 	  switch (hd.typeflag)
 	    {
 	      /* Hardlink.  */
@@ -225,10 +202,6 @@ grub_cpio_find_file (struct grub_archelp_data *data, char **name,
 	}
       return GRUB_ERR_NONE;
     }
-
-  if (*name == NULL)
-    return grub_error (GRUB_ERR_BAD_FS, "invalid tar archive");
-
   return GRUB_ERR_NONE;
 }
 
@@ -363,7 +336,6 @@ static struct grub_fs grub_cpio_fs = {
 
 GRUB_MOD_INIT (tar)
 {
-  grub_cpio_fs.mod = mod;
   grub_fs_register (&grub_cpio_fs);
 }
 

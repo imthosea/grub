@@ -25,6 +25,8 @@
 #include <grub/i18n.h>
 #include <grub/ieee1275/console.h>
 
+#define IEEE1275_IHANDLE_INVALID  ((grub_ieee1275_cell_t) 0)
+
 struct ofserial_hash_ent
 {
   char *devpath;
@@ -42,7 +44,7 @@ do_real_config (struct grub_serial_port *port)
 
   if (grub_ieee1275_open (port->elem->devpath, &port->handle)
       || port->handle == (grub_ieee1275_ihandle_t) -1)
-    port->handle = GRUB_IEEE1275_IHANDLE_INVALID;
+    port->handle = IEEE1275_IHANDLE_INVALID;
 
   port->configured = 1;
 }
@@ -56,7 +58,7 @@ serial_hw_fetch (struct grub_serial_port *port)
 
   do_real_config (port);
 
-  if (port->handle == GRUB_IEEE1275_IHANDLE_INVALID)
+  if (port->handle == IEEE1275_IHANDLE_INVALID)
     return -1;
   grub_ieee1275_read (port->handle, &c, 1, &actual);
 
@@ -74,7 +76,7 @@ serial_hw_put (struct grub_serial_port *port, const int c)
 
   do_real_config (port);
 
-  if (port->handle == GRUB_IEEE1275_IHANDLE_INVALID)
+  if (port->handle == IEEE1275_IHANDLE_INVALID)
     return;
 
   grub_ieee1275_write (port->handle, &c0, 1, &actual);

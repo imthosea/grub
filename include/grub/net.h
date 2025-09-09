@@ -540,7 +540,16 @@ void grub_bootp_fini (void);
 void grub_dns_init (void);
 void grub_dns_fini (void);
 
-void grub_net_network_level_interface_unregister (struct grub_net_network_level_interface *inter);
+static inline void
+grub_net_network_level_interface_unregister (struct grub_net_network_level_interface *inter)
+{
+  inter->card->num_ifaces--;
+  *inter->prev = inter->next;
+  if (inter->next)
+    inter->next->prev = inter->prev;
+  inter->next = 0;
+  inter->prev = 0;
+}
 
 void
 grub_net_tcp_retransmit (void);
@@ -570,7 +579,7 @@ void
 grub_net_remove_dns_server (const struct grub_net_network_level_address *s);
 
 grub_err_t
-grub_net_search_config_file (char *config, grub_size_t config_buf_len);
+grub_net_search_config_file (char *config);
 
 extern char *grub_net_default_server;
 

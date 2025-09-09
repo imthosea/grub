@@ -18,7 +18,6 @@
  */
 
 #include <grub/kernel.h>
-#include <grub/stack_protector.h>
 #include <grub/misc.h>
 #include <grub/symbol.h>
 #include <grub/dl.h>
@@ -31,14 +30,10 @@
 #include <grub/reader.h>
 #include <grub/parser.h>
 #include <grub/verify.h>
-#include <grub/types.h>
 
 #ifdef GRUB_MACHINE_PCBIOS
 #include <grub/machine/memory.h>
 #endif
-
-static bool cli_disabled = false;
-static bool cli_need_auth = false;
 
 grub_addr_t
 grub_modules_get_end (void)
@@ -242,39 +237,6 @@ grub_load_normal_mode (void)
   grub_command_execute ("normal", 0, 0);
 }
 
-bool
-grub_is_cli_disabled (void)
-{
-  return cli_disabled;
-}
-
-bool
-grub_is_cli_need_auth (void)
-{
-  return cli_need_auth;
-}
-
-void grub_cli_set_auth_needed (void)
-{
-  cli_need_auth = true;
-}
-
-static void
-check_is_cli_disabled (void)
-{
-  struct grub_module_header *header;
-  header = 0;
-
-  FOR_MODULES (header)
-    {
-      if (header->type == OBJ_TYPE_DISABLE_CLI)
-	{
-	  cli_disabled = true;
-	  return;
-	}
-    }
-}
-
 static void
 reclaim_module_space (void)
 {
@@ -303,16 +265,6 @@ reclaim_module_space (void)
 void __attribute__ ((noreturn))
 grub_main (void)
 {
-#ifdef GRUB_STACK_PROTECTOR
-  /*
-   * This call should only be made from a function that does not return because
-   * functions that return will get instrumented to check that the stack cookie
-   * does not change and this call will change the stack cookie. Thus a stack
-   * guard failure will be triggered.
-   */
-  grub_update_stack_guard ();
-#endif
-
   /* First of all, initialize the machine.  */
   grub_machine_init ();
 
@@ -341,9 +293,6 @@ grub_main (void)
   grub_load_modules ();
 
   grub_boot_time ("After loading embedded modules.");
-
-  /* Check if the CLI should be disabled */
-  check_is_cli_disabled ();
 
   /* It is better to set the root device as soon as possible,
      for convenience.  */

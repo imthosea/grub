@@ -226,10 +226,7 @@ find_file (char *currpath,
 	    return grub_error (GRUB_ERR_SYMLINK_LOOP,
 			       N_("too deep nesting of symlinks"));
 
-	  if (read_symlink != NULL)
-	    symlink = read_symlink (ctx->currnode->node);
-	  else
-	    return grub_error (GRUB_ERR_BAD_FS, "read_symlink is NULL");
+	  symlink = read_symlink (ctx->currnode->node);
 
 	  if (!symlink)
 	    return grub_errno;

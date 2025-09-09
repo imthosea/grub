@@ -21,7 +21,6 @@
 #include <grub/fs.h>
 #include <grub/disk.h>
 #include <grub/dl.h>
-#include <grub/safemath.h>
 
 GRUB_MOD_LICENSE ("GPLv3+");
 
@@ -69,7 +68,6 @@ handle_symlink (struct grub_archelp_data *data,
   char *rest;
   char *linktarget;
   grub_size_t linktarget_len;
-  grub_size_t sz;
 
   *restart = 0;
 
@@ -100,12 +98,7 @@ handle_symlink (struct grub_archelp_data *data,
   if (linktarget[0] == '\0')
     return GRUB_ERR_NONE;
   linktarget_len = grub_strlen (linktarget);
-
-  if (grub_add (linktarget_len, grub_strlen (*name), &sz) ||
-      grub_add (sz, 2, &sz))
-    return grub_error (GRUB_ERR_OUT_OF_RANGE, N_("link target length overflow"));
-
-  target = grub_malloc (sz);
+  target = grub_malloc (linktarget_len + grub_strlen (*name) + 2);
   if (!target)
     return grub_errno;
 

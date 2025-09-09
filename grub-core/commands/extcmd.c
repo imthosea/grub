@@ -49,9 +49,6 @@ grub_extcmd_dispatcher (struct grub_command *cmd, int argc, char **args,
     }
 
   state = grub_arg_list_alloc (ext, argc, args);
-  if (state == NULL)
-    return grub_errno;
-
   if (grub_arg_parse (ext, argc, args, state, &new_args, &new_argc))
     {
       context.state = state;

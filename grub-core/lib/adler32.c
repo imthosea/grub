@@ -29,11 +29,9 @@ struct adler32_context
 };
 
 static void
-adler32_init (void *context, unsigned int flags)
+adler32_init (void *context)
 {
   struct adler32_context *ctx = context;
-
-  (void) flags;
 
   ctx->a = 1;
   ctx->b = 0;
@@ -83,22 +81,13 @@ adler32_read (void *context)
 
 static gcry_md_spec_t spec_adler32 =
   {
-    .algo = GCRY_MD_ADLER32,
-    .flags = {.disabled = 0, .fips = 0},
-    .name = "ADLER32",
-    .asnoid = NULL,
-    .asnlen = 0,
-    .oids = NULL,
-    .mdlen = 4,
-    .init = adler32_init,
-    .write = adler32_write,
-    .final = adler32_final,
-    .read = adler32_read,
-    .contextsize = sizeof (struct adler32_context),
-    .blocksize = 64,
+    "ADLER32", 0, 0, 0, 4,
+    adler32_init, adler32_write, adler32_final, adler32_read,
+    sizeof (struct adler32_context),
 #ifdef GRUB_UTIL
     .modname = "adler32",
 #endif
+    .blocksize = 64
   };
 
 

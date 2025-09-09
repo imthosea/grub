@@ -67,7 +67,7 @@ struct xen_boot_binary
 {
   struct xen_boot_binary *next;
   struct xen_boot_binary **prev;
-  bool is_hypervisor;
+  int is_hypervisor;
 
   grub_addr_t start;
   grub_size_t size;
@@ -79,7 +79,7 @@ struct xen_boot_binary
 
 static grub_dl_t my_mod;
 
-static bool loaded;
+static int loaded;
 
 static struct xen_boot_binary *xen_hypervisor;
 static struct xen_boot_binary *module_head;
@@ -174,7 +174,7 @@ prepare_xen_module_params (struct xen_boot_binary *module, void *xen_boot_fdt)
 		    module->cmdline, module->cmdline, module->cmdline_size);
 
       retval = grub_fdt_set_prop (xen_boot_fdt, module_node, "bootargs",
-				  module->cmdline, module->cmdline_size);
+				  module->cmdline, module->cmdline_size + 1);
       if (retval)
 	return grub_error (GRUB_ERR_IO, "failed to update FDT");
     }
@@ -247,17 +247,13 @@ fail:
 static grub_err_t
 xen_boot (void)
 {
-  grub_addr_t start;
-
   grub_err_t err = finalize_params_xen_boot ();
   if (err)
     return err;
 
-  start = xen_boot_address_align (xen_hypervisor->start,
-				  xen_hypervisor->align);
-  return grub_arch_efi_linux_boot_image (start,
-					 xen_hypervisor->size,
-					 xen_hypervisor->cmdline);
+  return grub_arch_efi_linux_boot_image (xen_hypervisor->start,
+					  xen_hypervisor->size,
+					  xen_hypervisor->cmdline);
 }
 
 static void
@@ -280,7 +276,7 @@ single_binary_unload (struct xen_boot_binary *binary)
 		    binary->cmdline, binary->cmdline_size);
     }
 
-  if (binary->is_hypervisor == false)
+  if (!binary->is_hypervisor)
     grub_list_remove (GRUB_AS_LIST (binary));
 
   grub_dprintf ("xen_loader",
@@ -294,9 +290,9 @@ single_binary_unload (struct xen_boot_binary *binary)
 static void
 all_binaries_unload (void)
 {
-  struct xen_boot_binary *binary, *next_binary;
+  struct xen_boot_binary *binary;
 
-  FOR_LIST_ELEMENTS_SAFE (binary, next_binary, module_head)
+  FOR_LIST_ELEMENTS (binary, module_head)
   {
     single_binary_unload (binary);
   }
@@ -310,7 +306,7 @@ all_binaries_unload (void)
 static grub_err_t
 xen_unload (void)
 {
-  loaded = false;
+  loaded = 0;
   all_binaries_unload ();
   grub_fdt_unload ();
   grub_dl_unref (my_mod);
@@ -402,7 +398,7 @@ grub_cmd_xen_module (grub_command_t cmd __attribute__((unused)),
       goto fail;
     }
 
-  if (loaded == false)
+  if (!loaded)
     {
       grub_error (GRUB_ERR_BAD_ARGUMENT,
 		  N_("you need to load the Xen Hypervisor first"));
@@ -414,7 +410,7 @@ grub_cmd_xen_module (grub_command_t cmd __attribute__((unused)),
   if (!module)
     return grub_errno;
 
-  module->is_hypervisor = false;
+  module->is_hypervisor = 0;
   module->align = 4096;
 
   grub_dprintf ("xen_loader", "Init module and node info\n");
@@ -470,7 +466,7 @@ grub_cmd_xen_hypervisor (grub_command_t cmd __attribute__ ((unused)),
   if (!xen_hypervisor)
     return grub_errno;
 
-  xen_hypervisor->is_hypervisor = true;
+  xen_hypervisor->is_hypervisor = 1;
   xen_hypervisor->align
     = (grub_size_t) lh.pe_image_header.optional_header.section_alignment;
 
@@ -478,7 +474,7 @@ grub_cmd_xen_hypervisor (grub_command_t cmd __attribute__ ((unused)),
   if (grub_errno == GRUB_ERR_NONE)
     {
       grub_loader_set (xen_boot, xen_unload, 0);
-      loaded = true;
+      loaded = 1;
     }
 
 fail:
@@ -486,7 +482,7 @@ fail:
     grub_file_close (file);
   if (grub_errno != GRUB_ERR_NONE)
     {
-      loaded = false;
+      loaded = 0;
       all_binaries_unload ();
       grub_dl_unref (my_mod);
     }

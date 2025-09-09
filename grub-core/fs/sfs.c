@@ -26,7 +26,6 @@
 #include <grub/types.h>
 #include <grub/fshelp.h>
 #include <grub/charset.h>
-#include <grub/lockdown.h>
 #include <grub/safemath.h>
 
 GRUB_MOD_LICENSE ("GPLv3+");
@@ -429,9 +428,6 @@ grub_sfs_mount (grub_disk_t disk)
 	     - 24    /* offsetof (struct grub_sfs_objc, objects) */
 	     - 25);  /* offsetof (struct grub_sfs_obj, filename) */
   data->label = grub_zalloc (max_len + 1);
-  if (data->label == NULL)
-    goto fail;
-
   grub_strncpy (data->label, (char *) rootobjc->objects[0].filename, max_len);
 
   grub_free (rootobjc_data);
@@ -783,16 +779,11 @@ static struct grub_fs grub_sfs_fs =
 
 GRUB_MOD_INIT(sfs)
 {
-  if (!grub_is_lockdown ())
-    {
-      grub_sfs_fs.mod = mod;
-      grub_fs_register (&grub_sfs_fs);
-    }
+  grub_fs_register (&grub_sfs_fs);
   my_mod = mod;
 }
 
 GRUB_MOD_FINI(sfs)
 {
-  if (!grub_is_lockdown ())
-    grub_fs_unregister (&grub_sfs_fs);
+  grub_fs_unregister (&grub_sfs_fs);
 }

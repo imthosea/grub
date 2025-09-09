@@ -117,26 +117,19 @@ if [ "x$GRUB_TOP_LEVEL_OS_PROBER" != x ]; then
   OSPROBED=$(grub_move_to_front "$GRUB_TOP_LEVEL_OS_PROBER" ${OSPROBED})
 fi
 
-case "$GRUB_OS_PROBER_SKIP_LIST" in *@/[dD][eE][vV]/*)
-	grub_warn "$(gettext_printf "GRUB_OS_PROBER_SKIP_LIST contains deprecated <UUID>@/dev/* notation. The @/dev/* suffix is ignored.")"
-esac
-
 for OS in ${OSPROBED} ; do
   DEVICE="`echo ${OS} | cut -d ':' -f 1`"
   LONGNAME="`echo ${OS} | cut -d ':' -f 2 | tr '^' ' '`"
   LABEL="`echo ${OS} | cut -d ':' -f 3 | tr '^' ' '`"
   BOOT="`echo ${OS} | cut -d ':' -f 4`"
-  unset UUID
-  if [ -n "${GRUB_OS_PROBER_SKIP_LIST}" ] && UUID="`${grub_probe} --target=fs_uuid --device ${DEVICE%@*}`"; then
-    SPACE='[[:space:],;]' # regex matching spaces and common separators
+  if UUID="`${grub_probe} --target=fs_uuid --device ${DEVICE%@*}`"; then
+    EXPUUID="$UUID"
 
-    if [ x"${DEVICE##*@*}" = x ] ; then
-      EXPUUID="$UUID@${DEVICE#*@}"
-    else
-      EXPUUID="$UUID(@/dev/.*)?"
+    if [ x"${DEVICE#*@}" != x ] ; then
+      EXPUUID="${EXPUUID}@${DEVICE#*@}"
     fi
 
-    if printf %s " ${GRUB_OS_PROBER_SKIP_LIST} " | grep -Eqie "${SPACE}${EXPUUID}${SPACE}" ; then
+    if [ "x${GRUB_OS_PROBER_SKIP_LIST}" != "x" ] && [ "x`echo ${GRUB_OS_PROBER_SKIP_LIST} | grep -i -e '\b'${EXPUUID}'\b'`" != "x" ] ; then
       echo "Skipped ${LONGNAME} on ${DEVICE} by user request." >&2
       continue
     fi
@@ -162,8 +155,6 @@ for OS in ${OSPROBED} ; do
 
 	  onstr="$(gettext_printf "(on %s)" "${DEVICE}")"
       cat << EOF
-# This menu entry is supported only on PC BIOS platforms.
-if [ "\$grub_platform" = "pc" ]; then
 menuentry '$(echo "${LONGNAME} $onstr" | grub_quote)' $CLASS --class os \$menuentry_id_option 'osprober-chain-$(grub_get_device_id "${DEVICE}")' {
 EOF
       save_default_entry | grub_add_tab
@@ -188,7 +179,6 @@ EOF
       cat <<EOF
 	chainloader +1
 }
-fi
 EOF
     ;;
     efi)
@@ -197,8 +187,6 @@ EOF
 	DEVICE=${DEVICE%@*}
 	onstr="$(gettext_printf "(on %s)" "${DEVICE}")"
       cat << EOF
-# This menu entry is supported only on EFI platforms.
-if [ "\$grub_platform" = "efi" ]; then
 menuentry '$(echo "${LONGNAME} $onstr" | grub_quote)' $CLASS --class os \$menuentry_id_option 'osprober-efi-$(grub_get_device_id "${DEVICE}")' {
 EOF
       save_default_entry | sed -e "s/^/\t/"
@@ -207,7 +195,6 @@ EOF
       cat <<EOF
 	chainloader ${EFIPATH}
 }
-fi
 EOF
     ;;
     linux)
@@ -312,7 +299,7 @@ EOF
       echo "$title_correction_code"
     ;;
     macosx)
-      if [ "${UUID=`${grub_probe} --target=fs_uuid --device ${DEVICE}`}" ]; then
+      if [ "${UUID}" ]; then
 	OSXUUID="${UUID}"
 	osx_entry xnu_kernel 32
 	osx_entry xnu_kernel64 64

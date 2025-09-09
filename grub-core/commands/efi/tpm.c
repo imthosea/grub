@@ -292,15 +292,6 @@ grub_tpm_present (void)
 {
   grub_efi_handle_t tpm_handle;
   grub_efi_uint8_t protocol_version;
-  grub_efi_cc_protocol_t *cc;
-
-  /*
-   * When confidential computing measurement protocol is enabled
-   * we assume the TPM is present.
-   */
-  cc = grub_efi_locate_protocol (&cc_measurement_guid, NULL);
-  if (cc != NULL)
-    return 1;
 
   if (!grub_tpm_handle_find (&tpm_handle, &protocol_version))
     return 0;
@@ -331,37 +322,4 @@ grub_tpm_present (void)
 	}
       return grub_tpm2_present (tpm);
     }
-}
-
-grub_uint32_t
-grub_tpm2_active_pcr_banks (void)
-{
-  grub_efi_handle_t tpm_handle;
-  grub_efi_uint8_t protocol_version;
-  grub_efi_tpm2_protocol_t *tpm;
-  grub_efi_uint32_t active_pcr_banks = 0;
-
-  if (!grub_tpm_handle_find (&tpm_handle, &protocol_version))
-    return 0;
-
-  if (protocol_version == 1)
-    return 0; /* We report TPM2 status */
-
-  tpm = grub_efi_open_protocol (tpm_handle, &tpm2_guid,
-				GRUB_EFI_OPEN_PROTOCOL_GET_PROTOCOL);
-  if (tpm == NULL)
-    {
-      grub_dprintf ("tpm", "Cannot open TPM2 protocol\n");
-      return 0;
-    }
-
-  if (grub_tpm2_present (tpm))
-    {
-      grub_efi_status_t status = tpm->get_active_pcr_banks (tpm, &active_pcr_banks);
-
-      if (status != GRUB_EFI_SUCCESS)
-	return 0; /* Assume none available if the call fails. */
-    }
-
-  return active_pcr_banks;
 }

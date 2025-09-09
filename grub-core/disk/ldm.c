@@ -179,36 +179,6 @@ gpt_ldm_sector (grub_disk_t dsk)
   return sector;
 }
 
-static void
-free_pv (struct grub_diskfilter_pv *pv)
-{
-  if (pv == NULL)
-    return;
-
-  grub_free (pv->internal_id);
-  grub_free (pv->id.uuid);
-  grub_free (pv);
-}
-
-static void
-free_lv (struct grub_diskfilter_lv *lv)
-{
-  if (lv == NULL)
-    return;
-
-  grub_free (lv->internal_id);
-  grub_free (lv->name);
-  grub_free (lv->fullname);
-  if (lv->segments)
-    {
-      unsigned int i;
-      for (i = 0; i < lv->segment_count; i++)
-	grub_free (lv->segments[i].nodes);
-      grub_free (lv->segments);
-    }
-  grub_free (lv);
-}
-
 static struct grub_diskfilter_vg *
 make_vg (grub_disk_t disk,
 	 const struct grub_ldm_label *label)
@@ -226,8 +196,12 @@ make_vg (grub_disk_t disk,
   vg->name = grub_malloc (LDM_NAME_STRLEN + 1);
   vg->uuid = grub_malloc (LDM_GUID_STRLEN + 1);
   if (! vg->uuid || !vg->name)
-    goto fail1;
-
+    {
+      grub_free (vg->uuid);
+      grub_free (vg->name);
+      grub_free (vg);
+      return NULL;
+    }
   grub_memcpy (vg->uuid, label->group_guid, LDM_GUID_STRLEN);
   grub_memcpy (vg->name, label->group_name, LDM_NAME_STRLEN);
   vg->name[LDM_NAME_STRLEN] = 0;
@@ -246,7 +220,6 @@ make_vg (grub_disk_t disk,
       struct grub_ldm_vblk vblk[GRUB_DISK_SECTOR_SIZE
 				/ sizeof (struct grub_ldm_vblk)];
       unsigned i;
-      grub_size_t sz;
       err = grub_disk_read (disk, cursec, 0,
 			    sizeof(vblk), &vblk);
       if (err)
@@ -278,16 +251,10 @@ make_vg (grub_disk_t disk,
 	      grub_free (pv);
 	      goto fail2;
 	    }
-	  if (grub_add (ptr[0], 2, &sz))
-	    {
-	      grub_free (pv);
-	      goto fail2;
-	    }
-
-	  pv->internal_id = grub_malloc (sz);
+	  pv->internal_id = grub_malloc (ptr[0] + 2);
 	  if (!pv->internal_id)
 	    {
-	      free_pv (pv);
+	      grub_free (pv);
 	      goto fail2;
 	    }
 	  grub_memcpy (pv->internal_id, ptr, (grub_size_t) ptr[0] + 1);
@@ -297,7 +264,7 @@ make_vg (grub_disk_t disk,
 	  if (ptr + *ptr + 1 >= vblk[i].dynamic
 	      + sizeof (vblk[i].dynamic))
 	    {
-	      free_pv (pv);
+	      grub_free (pv);
 	      goto fail2;
 	    }
 	  /* ptr = name.  */
@@ -305,23 +272,11 @@ make_vg (grub_disk_t disk,
 	  if (ptr + *ptr + 1
 	      >= vblk[i].dynamic + sizeof (vblk[i].dynamic))
 	    {
-	      free_pv (pv);
+	      grub_free (pv);
 	      goto fail2;
 	    }
 	  pv->id.uuidlen = *ptr;
-
-	  if (grub_add (pv->id.uuidlen, 1, &sz))
-	    {
-	      free_pv (pv);
-	      goto fail2;
-	    }
-
-	  pv->id.uuid = grub_malloc (sz);
-	  if (pv->id.uuid == NULL)
-	    {
-	      free_pv (pv);
-	      goto fail2;
-	    }
+	  pv->id.uuid = grub_malloc (pv->id.uuidlen + 1);
 	  grub_memcpy (pv->id.uuid, ptr + 1, pv->id.uuidlen);
 	  pv->id.uuid[pv->id.uuidlen] = 0;
 
@@ -367,7 +322,7 @@ make_vg (grub_disk_t disk,
 	  lv->segments = grub_zalloc (sizeof (*lv->segments));
 	  if (!lv->segments)
 	    {
-	      free_lv (lv);
+	      grub_free (lv);
 	      goto fail2;
 	    }
 	  lv->segments->start_extent = 0;
@@ -378,25 +333,20 @@ make_vg (grub_disk_t disk,
 					     sizeof (*lv->segments->nodes));
 	  if (!lv->segments->nodes)
 	    {
-	      free_lv (lv);
+	      grub_free (lv);
 	      goto fail2;
 	    }
 	  ptr = vblk[i].dynamic;
 	  if (ptr + *ptr + 1 >= vblk[i].dynamic
 	      + sizeof (vblk[i].dynamic))
 	    {
-	      free_lv (lv);
+	      grub_free (lv);
 	      goto fail2;
 	    }
-	  if (grub_add (ptr[0], 2, &sz))
-	    {
-	      free_lv (lv);
-	      goto fail2;
-	    }
-	  lv->internal_id = grub_malloc (sz);
+	  lv->internal_id = grub_malloc ((grub_size_t) ptr[0] + 2);
 	  if (!lv->internal_id)
 	    {
-	      free_lv (lv);
+	      grub_free (lv);
 	      goto fail2;
 	    }
 	  grub_memcpy (lv->internal_id, ptr, ptr[0] + 1);
@@ -406,18 +356,20 @@ make_vg (grub_disk_t disk,
 	  if (ptr + *ptr + 1 >= vblk[i].dynamic
 	      + sizeof (vblk[i].dynamic))
 	    {
-	      free_lv (lv);
+	      grub_free (lv);
 	      goto fail2;
 	    }
 	  if (grub_add (*ptr, 1, &sz))
 	    {
-	      free_lv (lv);
+	      grub_free (lv->internal_id);
+	      grub_free (lv);
 	      goto fail2;
 	    }
 	  lv->name = grub_malloc (sz);
 	  if (!lv->name)
 	    {
-	      free_lv (lv);
+	      grub_free (lv->internal_id);
+	      grub_free (lv);
 	      goto fail2;
 	    }
 	  grub_memcpy (lv->name, ptr + 1, *ptr);
@@ -426,28 +378,36 @@ make_vg (grub_disk_t disk,
 					 vg->uuid, lv->name);
 	  if (!lv->fullname)
 	    {
-	      free_lv (lv);
+	      grub_free (lv->internal_id);
+	      grub_free (lv->name);
+	      grub_free (lv);
 	      goto fail2;
 	    }
 	  ptr += *ptr + 1;
 	  if (ptr + *ptr + 1
 	      >= vblk[i].dynamic + sizeof (vblk[i].dynamic))
 	    {
-	      free_lv (lv);
+	      grub_free (lv->internal_id);
+	      grub_free (lv->name);
+	      grub_free (lv);
 	      goto fail2;
 	    }
 	  /* ptr = volume type.  */
 	  ptr += *ptr + 1;
 	  if (ptr >= vblk[i].dynamic + sizeof (vblk[i].dynamic))
 	    {
-	      free_lv (lv);
+	      grub_free (lv->internal_id);
+	      grub_free (lv->name);
+	      grub_free (lv);
 	      goto fail2;
 	    }
 	  /* ptr = flags.  */
 	  ptr += *ptr + 1;
 	  if (ptr >= vblk[i].dynamic + sizeof (vblk[i].dynamic))
 	    {
-	      free_lv (lv);
+	      grub_free (lv->internal_id);
+	      grub_free (lv->name);
+	      grub_free (lv);
 	      goto fail2;
 	    }
 
@@ -456,13 +416,17 @@ make_vg (grub_disk_t disk,
 	  /* ptr = number of children.  */
 	  if (ptr >= vblk[i].dynamic + sizeof (vblk[i].dynamic))
 	    {
-	      free_lv (lv);
+	      grub_free (lv->internal_id);
+	      grub_free (lv->name);
+	      grub_free (lv);
 	      goto fail2;
 	    }
 	  ptr += *ptr + 1;
 	  if (ptr >= vblk[i].dynamic + sizeof (vblk[i].dynamic))
 	    {
-	      free_lv (lv);
+	      grub_free (lv->internal_id);
+	      grub_free (lv->name);
+	      grub_free (lv);
 	      goto fail2;
 	    }
 
@@ -472,7 +436,9 @@ make_vg (grub_disk_t disk,
 	      || ptr + *ptr + 1>= vblk[i].dynamic
 	      + sizeof (vblk[i].dynamic))
 	    {
-	      free_lv (lv);
+	      grub_free (lv->internal_id);
+	      grub_free (lv->name);
+	      grub_free (lv);
 	      goto fail2;
 	    }
 	  lv->size = read_int (ptr + 1, *ptr);
@@ -489,7 +455,6 @@ make_vg (grub_disk_t disk,
       struct grub_ldm_vblk vblk[GRUB_DISK_SECTOR_SIZE
 				/ sizeof (struct grub_ldm_vblk)];
       unsigned i;
-      grub_size_t sz;
       err = grub_disk_read (disk, cursec, 0,
 			    sizeof(vblk), &vblk);
       if (err)
@@ -522,18 +487,13 @@ make_vg (grub_disk_t disk,
 	  ptr = vblk[i].dynamic;
 	  if (ptr + *ptr + 1 >= vblk[i].dynamic + sizeof (vblk[i].dynamic))
 	    {
-	      free_lv (comp);
+	      grub_free (comp);
 	      goto fail2;
 	    }
-	  if (grub_add (ptr[0], 2, &sz))
-	    {
-	      free_lv (comp);
-	      goto fail2;
-	    }
-	  comp->internal_id = grub_malloc (sz);
+	  comp->internal_id = grub_malloc ((grub_size_t) ptr[0] + 2);
 	  if (!comp->internal_id)
 	    {
-	      free_lv (comp);
+	      grub_free (comp);
 	      goto fail2;
 	    }
 	  grub_memcpy (comp->internal_id, ptr, ptr[0] + 1);
@@ -542,14 +502,16 @@ make_vg (grub_disk_t disk,
 	  ptr += *ptr + 1;
 	  if (ptr + *ptr + 1 >= vblk[i].dynamic + sizeof (vblk[i].dynamic))
 	    {
-	      free_lv (comp);
+	      grub_free (comp->internal_id);
+	      grub_free (comp);
 	      goto fail2;
 	    }
 	  /* ptr = name.  */
 	  ptr += *ptr + 1;
 	  if (ptr + *ptr + 1 >= vblk[i].dynamic + sizeof (vblk[i].dynamic))
 	    {
-	      free_lv (comp);
+	      grub_free (comp->internal_id);
+	      grub_free (comp);
 	      goto fail2;
 	    }
 	  /* ptr = state.  */
@@ -559,7 +521,8 @@ make_vg (grub_disk_t disk,
 	  ptr += 4;
 	  if (ptr >= vblk[i].dynamic + sizeof (vblk[i].dynamic))
 	    {
-	      free_lv (comp);
+	      grub_free (comp->internal_id);
+	      grub_free (comp);
 	      goto fail2;
 	    }
 
@@ -567,14 +530,16 @@ make_vg (grub_disk_t disk,
 	  ptr += *ptr + 1;
 	  if (ptr >= vblk[i].dynamic + sizeof (vblk[i].dynamic))
 	    {
-	      free_lv (comp);
+	      grub_free (comp->internal_id);
+	      grub_free (comp);
 	      goto fail2;
 	    }
 	  ptr += 8 + 8;
 	  if (ptr + *ptr + 1 >= vblk[i].dynamic
 	      + sizeof (vblk[i].dynamic))
 	    {
-	      free_lv (comp);
+	      grub_free (comp->internal_id);
+	      grub_free (comp);
 	      goto fail2;
 	    }
 	  for (lv = vg->lvs; lv; lv = lv->next)
@@ -585,7 +550,8 @@ make_vg (grub_disk_t disk,
 	    }
 	  if (!lv)
 	    {
-	      free_lv (comp);
+	      grub_free (comp->internal_id);
+	      grub_free (comp);
 	      continue;
 	    }
 	  comp->size = lv->size;
@@ -597,7 +563,8 @@ make_vg (grub_disk_t disk,
 					    sizeof (*comp->segments));
 	      if (!comp->segments)
 		{
-		  free_lv (comp);
+		  grub_free (comp->internal_id);
+		  grub_free (comp);
 		  goto fail2;
 		}
 	    }
@@ -608,7 +575,8 @@ make_vg (grub_disk_t disk,
 	      comp->segments = grub_malloc (sizeof (*comp->segments));
 	      if (!comp->segments)
 		{
-		  free_lv (comp);
+		  grub_free (comp->internal_id);
+		  grub_free (comp);
 		  goto fail2;
 		}
 	      comp->segments->start_extent = 0;
@@ -623,21 +591,27 @@ make_vg (grub_disk_t disk,
 		}
 	      else
 		{
-		  free_lv (comp);
+		  grub_free (comp->segments);
+		  grub_free (comp->internal_id);
+		  grub_free (comp);
 		  goto fail2;
 		}
 	      ptr += *ptr + 1;
 	      ptr++;
 	      if (!(vblk[i].flags & 0x10))
 		{
-		  free_lv (comp);
+		  grub_free (comp->segments);
+		  grub_free (comp->internal_id);
+		  grub_free (comp);
 		  goto fail2;
 		}
 	      if (ptr >= vblk[i].dynamic + sizeof (vblk[i].dynamic)
 		  || ptr + *ptr + 1 >= vblk[i].dynamic
 		  + sizeof (vblk[i].dynamic))
 		{
-		  free_lv (comp);
+		  grub_free (comp->segments);
+		  grub_free (comp->internal_id);
+		  grub_free (comp);
 		  goto fail2;
 		}
 	      comp->segments->stripe_size = read_int (ptr + 1, *ptr);
@@ -645,16 +619,20 @@ make_vg (grub_disk_t disk,
 	      if (ptr + *ptr + 1 >= vblk[i].dynamic
 		  + sizeof (vblk[i].dynamic))
 		{
-		  free_lv (comp);
+		  grub_free (comp->segments);
+		  grub_free (comp->internal_id);
+		  grub_free (comp);
 		  goto fail2;
 		}
 	      comp->segments->node_count = read_int (ptr + 1, *ptr);
 	      comp->segments->node_alloc = comp->segments->node_count;
 	      comp->segments->nodes = grub_calloc (comp->segments->node_alloc,
 						   sizeof (*comp->segments->nodes));
-	      if (comp->segments->nodes == NULL)
+	      if (!lv->segments->nodes)
 		{
-		  free_lv (comp);
+		  grub_free (comp->segments);
+		  grub_free (comp->internal_id);
+		  grub_free (comp);
 		  goto fail2;
 		}
 	    }
@@ -662,18 +640,25 @@ make_vg (grub_disk_t disk,
 	  if (lv->segments->node_alloc == lv->segments->node_count)
 	    {
 	      void *t;
+	      grub_size_t sz;
 
 	      if (grub_mul (lv->segments->node_alloc, 2, &lv->segments->node_alloc) ||
 		  grub_mul (lv->segments->node_alloc, sizeof (*lv->segments->nodes), &sz))
 		{
-		  free_lv (comp);
+		  grub_free (comp->segments->nodes);
+		  grub_free (comp->segments);
+		  grub_free (comp->internal_id);
+		  grub_free (comp);
 		  goto fail2;
 		}
 
 	      t = grub_realloc (lv->segments->nodes, sz);
 	      if (!t)
 		{
-		  free_lv (comp);
+		  grub_free (comp->segments->nodes);
+		  grub_free (comp->segments);
+		  grub_free (comp->internal_id);
+		  grub_free (comp);
 		  goto fail2;
 		}
 	      lv->segments->nodes = t;
@@ -813,10 +798,7 @@ make_vg (grub_disk_t disk,
 	      comp->segments[comp->segment_count].nodes
 		= grub_malloc (sizeof (*comp->segments[comp->segment_count].nodes));
 	      if (!comp->segments[comp->segment_count].nodes)
-		{
-		  grub_free (comp->segments);
-		  goto fail2;
-		}
+		goto fail2;
 	      comp->segments[comp->segment_count].nodes[0] = part;
 	      comp->segment_count++;
 	    }
@@ -831,19 +813,25 @@ make_vg (grub_disk_t disk,
     struct grub_diskfilter_pv *pv, *next_pv;
     for (lv = vg->lvs; lv; lv = next_lv)
       {
-	next_lv = lv->next;
-	free_lv (lv);
+	unsigned i;
+	for (i = 0; i < lv->segment_count; i++)
+	  grub_free (lv->segments[i].nodes);
 
+	next_lv = lv->next;
+	grub_free (lv->segments);
+	grub_free (lv->internal_id);
+	grub_free (lv->name);
+	grub_free (lv->fullname);
+	grub_free (lv);
       }
     for (pv = vg->pvs; pv; pv = next_pv)
       {
 	next_pv = pv->next;
-	free_pv (pv);
+	grub_free (pv->id.uuid);
+	grub_free (pv);
       }
   }
- fail1:
   grub_free (vg->uuid);
-  grub_free (vg->name);
   grub_free (vg);
   return NULL;
 }

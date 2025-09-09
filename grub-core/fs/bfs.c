@@ -30,7 +30,6 @@
 #include <grub/types.h>
 #include <grub/i18n.h>
 #include <grub/fshelp.h>
-#include <grub/lockdown.h>
 
 GRUB_MOD_LICENSE ("GPLv3+");
 
@@ -809,7 +808,7 @@ find_file (const char *path, grub_disk_t disk,
     .disk = disk,
     .sb = sb,
   };
-  struct grub_fshelp_node *found = NULL;
+  struct grub_fshelp_node *found;
 
   err = read_extent (disk, sb, &sb->root_dir, 0, 0, &root.ino,
 		     sizeof (root.ino));
@@ -1107,11 +1106,7 @@ GRUB_MOD_INIT (bfs)
 {
   COMPILE_TIME_ASSERT (1 << LOG_EXTENT_SIZE ==
 		       sizeof (struct grub_bfs_extent));
-  if (!grub_is_lockdown ())
-    {
-      grub_bfs_fs.mod = mod;
-      grub_fs_register (&grub_bfs_fs);
-    }
+  grub_fs_register (&grub_bfs_fs);
 }
 
 #ifdef MODE_AFS
@@ -1120,6 +1115,5 @@ GRUB_MOD_FINI (afs)
 GRUB_MOD_FINI (bfs)
 #endif
 {
-  if (!grub_is_lockdown ())
-    grub_fs_unregister (&grub_bfs_fs);
+  grub_fs_unregister (&grub_bfs_fs);
 }
